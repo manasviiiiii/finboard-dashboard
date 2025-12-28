@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { Widget } from "@/types/widget";
 import { useWidgetStore } from "@/store/useWidgetStore";
 
+import BarChartIcon from "@mui/icons-material/BarChart";
+import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
+import TocIcon from "@mui/icons-material/Toc";
+import SettingsIcon from "@mui/icons-material/Settings";
+import DeleteIcon from "@mui/icons-material/Delete";
+import LoopIcon from "@mui/icons-material/Loop";
+
 import {
     LineChart,
     Line,
@@ -24,26 +31,32 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
 
     /* ---------- FETCH DATA ---------- */
     const fetchData = async () => {
-        if (!widget.apiConfig.url) return;
+    if (!widget.apiConfig.url) return;
 
-        try {
-            setLoading(true);
-            setError(null);
+    try {
+        setLoading(true);
+        setError(null);
 
-            const res = await fetch(widget.apiConfig.url);
-            if (!res.ok) throw new Error("Failed to fetch");
+        const res = await fetch(widget.apiConfig.url);
+        if (!res.ok) throw new Error("Failed to fetch");
 
-            const json = await res.json();
-            setData(json);
-        } catch (err: any) {
-            setError(err.message || "Something went wrong");
-        } finally {
-            setLoading(false);
-        }
-    };
+        const json = await res.json();
+        setData(json);
+
+        // ✅ update last fetched time
+        setLastUpdated(new Date());
+    } catch (err: any) {
+        setError(err.message || "Something went wrong");
+    } finally {
+        setLoading(false);
+    }
+};
+
 
     useEffect(() => {
         fetchData();
@@ -56,7 +69,15 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
         return () => clearInterval(intervalId);
     }, [widget.apiConfig.url, widget.apiConfig.refreshInterval]);
 
-    /* ---------- CARD LOGIC ---------- */
+    /* ---------- ICON BY TYPE ---------- */
+    const TypeIcon =
+        widget.type === "card"
+            ? ViewCarouselIcon
+            : widget.type === "table"
+            ? TocIcon
+            : BarChartIcon;
+
+    /* ---------- CARD VALUE ---------- */
     const getCardValue = () => {
         if (!data || typeof data !== "object") return null;
 
@@ -75,7 +96,7 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
         return null;
     };
 
-    /* ---------- TABLE LOGIC ---------- */
+    /* ---------- TABLE ---------- */
     const getTableRows = () => {
         if (!data || typeof data !== "object") return [];
 
@@ -98,7 +119,7 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
         return rows;
     };
 
-    /* ---------- CHART LOGIC ---------- */
+    /* ---------- CHART ---------- */
     const getChartData = () => {
         if (!data?.prices) return [];
 
@@ -109,36 +130,62 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
     };
 
     return (
-        <div
-            className="border rounded-md p-4 shadow-sm
-                 bg-white dark:bg-gray-900
-                 text-gray-900 dark:text-gray-100"
-        >
-            {/* Header */}
-            <div className="flex justify-between items-start">
-                <div>
-                    <h3 className="font-medium">{widget.title}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {widget.type}
-                    </p>
+        <div className="border rounded-lg p-4 shadow-sm bg-white dark:bg-gray-900">
+            {/* HEADER BAR */}
+            <div className="flex items-center justify-between mb-3">
+                {/* LEFT */}
+                <div className="flex items-center gap-3">
+                    <TypeIcon className="text-blue-600" />
+
+                    <span className="font-medium text-gray-900 dark:text-white">
+                        {widget.title}
+                    </span>
+
+                    {/* Refresh interval badge */}
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                        {widget.apiConfig.refreshInterval}
+                        <LoopIcon sx={{ fontSize: 14 }} />
+                    </span>
                 </div>
 
-                <button
-                    onClick={() => removeWidget(widget.id)}
-                    className="text-red-500 hover:text-red-700 font-semibold"
-                >
-                    ✕
-                </button>
+                {/* RIGHT ACTIONS */}
+                <div className="flex items-center gap-3">
+                    {/* Manual refresh */}
+                    <button
+                        onClick={fetchData}
+                        className="text-gray-500 hover:text-blue-600"
+                        title="Refresh"
+                    >
+                        <LoopIcon />
+                    </button>
+
+                    {/* Settings (future use) */}
+                    <button
+                        className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        title="Settings"
+                    >
+                        <SettingsIcon />
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                        onClick={() => removeWidget(widget.id)}
+                        className="text-gray-500 hover:text-red-600"
+                        title="Delete"
+                    >
+                        <DeleteIcon />
+                    </button>
+                </div>
             </div>
 
-            {/* Content */}
-            <div className="mt-4">
-                {loading && <p className="text-sm">Loading...</p>}
+            {/* CONTENT */}
+            <div>
+                {loading && <p className="text-sm text-gray-500">Loading…</p>}
                 {error && <p className="text-sm text-red-500">Error: {error}</p>}
 
                 {/* CARD */}
                 {!loading && !error && widget.type === "card" && (
-                    <div className="text-3xl font-bold">
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
                         {getCardValue() ?? "—"}
                     </div>
                 )}
@@ -146,12 +193,6 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
                 {/* TABLE */}
                 {!loading && !error && widget.type === "table" && (
                     <table className="w-full border mt-2 text-sm">
-                        <thead className="bg-gray-100 dark:bg-gray-800">
-                            <tr>
-                                <th className="border p-2 text-left">Key</th>
-                                <th className="border p-2 text-left">Value</th>
-                            </tr>
-                        </thead>
                         <tbody>
                             {getTableRows().map((row, idx) => (
                                 <tr key={idx}>
@@ -165,45 +206,38 @@ export default function WidgetCard({ widget }: WidgetCardProps) {
 
                 {/* CHART */}
                 {!loading && !error && widget.type === "chart" && (
-                    <div className="mt-4" style={{ width: "100%", height: 320 }}>
+                    <div style={{ width: "100%", height: 320 }}>
                         <ResponsiveContainer>
-                            <LineChart
-                                data={getChartData()}
-                                margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                            >
+                            <LineChart data={getChartData()}>
                                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-
-                                <XAxis
-                                    dataKey="time"
-                                    tick={{ fontSize: 12 }}
-                                    interval="preserveStartEnd"
-                                />
-
-                                <YAxis
-                                    tick={{ fontSize: 12 }}
-                                    tickFormatter={(value) =>
-                                        `$${Number(value).toLocaleString()}`
-                                    }
-                                />
-
-                                <Tooltip
-                                    formatter={(value: number) =>
-                                        `$${value.toLocaleString()}`
-                                    }
-                                />
-
+                                <XAxis dataKey="time" />
+                                <YAxis />
+                                <Tooltip />
                                 <Line
                                     type="monotone"
                                     dataKey="value"
                                     stroke="#2563eb"
                                     strokeWidth={2.5}
                                     dot={false}
-                                    activeDot={{ r: 5 }}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
                 )}
+                {/* last updated */}
+                
+    {lastUpdated && (
+    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-center">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+            Last updated{" "}
+            <span className="font-medium">
+                {lastUpdated.toLocaleTimeString()}
+            </span>
+        </p>
+    </div>
+)}
+
+
             </div>
         </div>
     );
